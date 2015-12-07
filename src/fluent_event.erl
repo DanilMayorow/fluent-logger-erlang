@@ -43,7 +43,7 @@ add_handler(Tag,Host,Port) ->
 %% this function is called to initialize the event handler.
 -spec init({atom(),inet:host(),inet:port_number()}) -> {ok, #state{}}.
 init({Tag,Host,Port}) when is_atom(Tag) ->
-    {ok,S} = gen_tcp:connect(Host,Port,[binary,{packet,0}]),
+    {ok,S} = try_connect(Host,Port,-1),
     TagBD = <<(atom_to_binary(Tag, latin1))/binary, ".">>,
     {ok,#state{tag=Tag,tagbd=TagBD,host=Host,port=Port,sock=S}};
 init(Tag) when is_atom(Tag) ->
@@ -115,6 +115,17 @@ code_change(_OldVsn, State, _Extra) ->
 %%% Internal functions
 %%%===================================================================
 
+-spec try_connect(inet:host(),inet:port_number(), integer()) -> {ok, inet:socket()}.
+try_connect(_, _, 0) -> throw({error, retry_over});
+try_connect(Host, Port, N) ->
+    case gen_tcp:connect(Host, Port, [binary,{packet,0}]) of
+        {ok, Sock} ->
+            {ok, Sock};
+        {error, _} ->
+            timer:sleep(1000),
+            try_connect(Host, Port, N-1)
+    end.
+
 -spec try_send(#state{}, binary(), non_neg_integer()) -> {ok, #state{}}.
 try_send(_State, _, 0) -> throw({error, retry_over});
 try_send(State, Bin, N) when is_binary(Bin) ->
@@ -126,7 +137,7 @@ try_send(State, Bin, N) when is_binary(Bin) ->
         {error, closed} ->
             Host = State#state.host,
             Port = State#state.port,
-            {ok,S} = gen_tcp:connect(Host,Port,[binary,{packet,0}]),
+            {ok,S} = try_connect(Host, Port, -1),
             try_send(State#state{sock=S}, Bin, N-1);
         Other ->
             throw({Other, Bin})
