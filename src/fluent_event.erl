@@ -166,12 +166,12 @@ make_default_package(State, Label, Data, PackOpt) ->
 -spec make_default_package(#state{}, binary(), msgpack:msgpack_map()) ->
                                   binary() | {error, term()}.
 make_default_package(State, Label, Data) ->
-    make_default_package(State, Label, Data, [{enable_str,false}]).
+    make_default_package(State, Label, Data, []).
 
 -spec make_default_package_jsx(#state{}, binary(), msgpack:object()) ->
                                   binary() | {error, term()}.
 make_default_package_jsx(State, Label, Data) ->
-    make_default_package(State, Label, Data, [{enable_str,false}, jsx]).
+    make_default_package(State, Label, Data, [{map_format, jsx}]).
 
 -spec make_lager_package(string(), string(),
                          msgpack:object(), #state{}) ->
@@ -183,4 +183,4 @@ make_lager_package(Date, Time, Data0, #state{tagbd=TagBD}) ->
              {<<"txt">>, list_to_binary(Data0)}]},
     {Msec,Sec,_} = os:timestamp(),
     Package = [<<TagBD/binary, Label/binary>>, Msec*1000000+Sec, Data],
-    msgpack:pack(Package, [{enable_str, false}]).
+    msgpack:pack(Package, []).
