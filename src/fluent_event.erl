@@ -35,8 +35,7 @@ init({Tag,Host,Port}) when is_atom(Tag) ->
     TagBD = erlang:atom_to_list(Tag),
     {ok,#state{tag=Tag,tagbd=TagBD,host=Host,port=Port,sock=S}};
 init(Tag) when is_atom(Tag) ->
-  TagBD = erlang:atom_to_list(Tag),
-  init({TagBD,localhost,24224}).
+  init({Tag,localhost,24224}).
 
 %% @private
 -spec handle_event({ atom() | string() | binary(), tuple()}, #state{}) ->
@@ -56,26 +55,26 @@ handle_event({<<"log">>, #lager_msg{datetime={Date, Time}, message=Message}}, St
 %%% Logger-log format
 %%%===================================================================
 handle_event({Label,Data}, State) when is_atom(Label) ->
-    handle_event({erlang:atom_to_binary(Label, latin1),Data}, State);
+    handle_event({erlang:atom_to_list(Label),Data}, State);
 
 handle_event({Label,Data}, State) when is_binary(Label) ->
     handle_event({erlang:binary_to_list(Label),Data}, State);
 
-handle_event({Label,Data}, State) when is_binary(Label), is_tuple(Data) ->
+handle_event({Label,Data}, State) when is_list(Label), is_tuple(Data) ->
     %% Data should be map
     Binary = case make_default_package(State, Label, Data) of
                  {error, _} ->  %% Data was not a map
-                     make_error_package(State, <<"pack_error">>, Data);
+                     make_error_package(State, "pack_error", Data);
                  Bin ->
                      Bin
              end,
     try_send(State, Binary, 3);
 
-handle_event({Label,Data}, State) when is_binary(Label), is_list(Data) -> 
+handle_event({Label,Data}, State) when is_list(Label), is_list(Data) ->
     %% map in proplist style
     Binary = case make_default_package_jsx(State, Label, Data) of
                  {error, _} ->  %% Data was not a map
-                     make_error_package(State, <<"pack_error">>, Data);
+                     make_error_package(State, "pack_error", Data);
                  Bin ->
                      Bin
              end,
@@ -86,7 +85,7 @@ handle_event({Label,Data}, State) when is_binary(Label), is_list(Data) ->
 %%%===================================================================
 handle_event(Other, State) ->
     Label = "direct",
-    Data = {[{<<"log">>, erlang:list_to_binary(io_lib:format("~w", [Other]))}]},
+    Data = {[{"log", erlang:list_to_binary(io_lib:format("~w", [Other]))}]},
     Bin = make_default_package(State, Label, Data),
     try_send(State, Bin, 3).
 
@@ -161,7 +160,7 @@ make_default_package(State, Label, Data, PackOpt) ->
     {Msec,Sec,_} = os:timestamp(),
     Tag =  string:join([State#state.tagbd, Label], "."),
     Package = [Tag,
-               Msec*1000000+Sec,
+               Msec*1000000+Sec, % second precision (Integer) time-format: Sep 28, 2022 @ 12:00:01.000
                Data,
                #{}],
     msgpack:pack(Package, PackOpt).
@@ -184,10 +183,10 @@ make_default_package_jsx(State, Label, Data) ->
                          msgpack:object(), #state{}) ->
                                 binary() | {error, term()}.
 make_lager_package(Date, Time, Data0, #state{tagbd=TagBD}) ->
-    Label = <<"lager_log">>,
-    Data = {[{<<"lager_date">>, erlang:list_to_binary(Date)},
-             {<<"lager_time">>, erlang:list_to_binary(Time)},
-             {<<"txt">>, erlang:list_to_binary(Data0)}]},
+    Label = "lager_log",
+    Data = {[{"lager_date", erlang:list_to_binary(Date)},
+             {"lager_time", erlang:list_to_binary(Time)},
+             {"txt", erlang:list_to_binary(Data0)}]},
     {Msec,Sec,_} = os:timestamp(),
     Tag =  string:join([TagBD, Label], "."),
     Package = [Tag, Msec*1000000+Sec, Data, #{}],
